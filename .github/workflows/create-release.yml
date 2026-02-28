@@ -1,0 +1,46 @@
+name: Create Release
+
+on:
+  workflow_call:
+    inputs:
+      tag-name:
+        description: "Tag name for the release (e.g. v1.2.3)"
+        required: true
+        type: string
+      artifact-name:
+        description: "Name of the artifact to download"
+        required: true
+        type: string
+      release-name:
+        description: "Display name for the release"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./artifact
+
+      - name: Zip artifact
+        run: |
+          cd ./artifact
+          zip -r ../${{ inputs.artifact-name }}.zip .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag-name }}
+          name: ${{ inputs.release-name }}
+          generate_release_notes: true
+          files: ${{ inputs.artifact-name }}.zip

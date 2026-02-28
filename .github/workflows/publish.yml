@@ -1,0 +1,62 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      project-path:
+        description: "Path to the project to publish"
+        required: true
+        type: string
+      artifact-name:
+        description: "Name for the uploaded artifact"
+        required: true
+        type: string
+      version:
+        description: "Version to stamp into the build"
+        required: true
+        type: string
+      configuration:
+        description: "Build configuration"
+        required: false
+        type: string
+        default: "Release"
+      runtime:
+        description: "Target runtime identifier"
+        required: false
+        type: string
+        default: "win-x64"
+      dotnet-version:
+        description: ".NET SDK version"
+        required: false
+        type: string
+        default: "10.x"
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Publish
+        run: >
+          dotnet publish ${{ inputs.project-path }}
+          -c ${{ inputs.configuration }}
+          --runtime ${{ inputs.runtime }}
+          --no-self-contained
+          /p:Version=${{ inputs.version }}
+          /p:AssemblyVersion=${{ inputs.version }}
+          /p:InformationalVersion=${{ inputs.version }}
+          -o ./publish
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./publish/

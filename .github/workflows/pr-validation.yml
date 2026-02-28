@@ -1,0 +1,17 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  version:
+    name: GitVersion
+    uses: ./.github/workflows/gitversion.yml
+
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+    with:
+      configuration: Release

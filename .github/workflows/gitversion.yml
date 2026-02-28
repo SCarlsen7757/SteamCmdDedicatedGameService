@@ -1,0 +1,53 @@
+name: GitVersion
+
+on:
+  workflow_call:
+    outputs:
+      semVer:
+        description: "The semantic version (e.g. 1.2.3)"
+        value: ${{ jobs.version.outputs.semVer }}
+      fullSemVer:
+        description: "The full semantic version (e.g. 1.2.3+5)"
+        value: ${{ jobs.version.outputs.fullSemVer }}
+      major:
+        description: "The major version"
+        value: ${{ jobs.version.outputs.major }}
+      minor:
+        description: "The minor version"
+        value: ${{ jobs.version.outputs.minor }}
+      patch:
+        description: "The patch version"
+        value: ${{ jobs.version.outputs.patch }}
+      assemblySemVer:
+        description: "The assembly semantic version"
+        value: ${{ jobs.version.outputs.assemblySemVer }}
+      informationalVersion:
+        description: "The informational version"
+        value: ${{ jobs.version.outputs.informationalVersion }}
+
+jobs:
+  version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      semVer: ${{ steps.gitversion.outputs.semVer }}
+      fullSemVer: ${{ steps.gitversion.outputs.fullSemVer }}
+      major: ${{ steps.gitversion.outputs.major }}
+      minor: ${{ steps.gitversion.outputs.minor }}
+      patch: ${{ steps.gitversion.outputs.patch }}
+      assemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}
+      informationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4.3.3
+        with:
+          versionSpec: "6.6.x"
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4.3.3

@@ -1,0 +1,40 @@
+name: Release RaceRoom
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "SteamCmdDedicatedGameService/**"
+      - "SteamCmdDedicatedGameService.RaceRoom/**"
+      - "GitVersion.yml"
+      - "global.json"
+      - ".github/workflows/**"
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: GitVersion
+    uses: ./.github/workflows/gitversion.yml
+
+  publish:
+    name: Publish RaceRoom
+    needs: version
+    uses: ./.github/workflows/publish.yml
+    with:
+      project-path: SteamCmdDedicatedGameService.RaceRoom
+      artifact-name: RaceRoomDedicatedServer
+      version: ${{ needs.version.outputs.semVer }}
+
+  release:
+    name: Release
+    needs: [version, publish]
+    uses: ./.github/workflows/create-release.yml
+    with:
+      tag-name: v${{ needs.version.outputs.semVer }}
+      artifact-name: RaceRoomDedicatedServer
+      release-name: RaceRoom Dedicated Server v${{ needs.version.outputs.semVer }}
+    permissions:
+      contents: write
