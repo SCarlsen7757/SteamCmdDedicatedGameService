@@ -18,9 +18,4 @@ public sealed class HealthCheckConfiguration
     /// Error patterns to look for in game server console output (case-insensitive).
     /// </summary>
     public List<string> ErrorPatterns { get; set; } = ["error", "exception", "crash", "fatal"];
-
-    /// <summary>
-    /// When <c>true</c>, lines containing ANSI red/bright-red escape codes are treated as errors.
-    /// </summary>
-    public bool DetectRedConsoleOutput { get; set; } = true;
 }
