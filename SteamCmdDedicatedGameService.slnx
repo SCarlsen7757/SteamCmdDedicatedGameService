@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SteamCmdDedicatedGameService.RaceRoom/SteamCmdDedicatedGameService.RaceRoom.csproj" />
+  <Project Path="SteamCmdDedicatedGameService/SteamCmdDedicatedGameService.csproj" />
+</Solution>
