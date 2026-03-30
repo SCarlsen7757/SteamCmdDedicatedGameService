@@ -55,10 +55,17 @@ public sealed class GameServerWorker(
             appLifetime.StopApplication();
             return;
         }
-
-        // Cleanup on stop
-        logger.LogInformation("GameServerWorker stopping. Shutting down game server...");
-        await gameServer.StopAsync(stoppingToken);
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal shutdown — fall through to graceful cleanup below.
+        }
+        finally
+        {
+            // Cleanup on stop — always attempt graceful shutdown.
+            logger.LogInformation("GameServerWorker stopping. Shutting down game server...");
+            using var shutdownCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await gameServer.StopAsync(shutdownCts.Token);
+        }
     }
 
     private async Task RunUpdateAndStartCycleAsync(CancellationToken cancellationToken)

@@ -37,9 +37,10 @@ public sealed class SteamCmdService(
 
         string arguments = $"+login anonymous +force_install_dir \"{installDirectory}\" +app_update {appId} validate +quit";
 
+        Process? process = null;
         try
         {
-            using var process = new Process();
+            process = new Process();
             process.StartInfo = new ProcessStartInfo
             {
                 FileName = _config.ExePath,
@@ -80,12 +81,17 @@ public sealed class SteamCmdService(
         catch (OperationCanceledException)
         {
             logger.LogWarning("SteamCMD update cancelled for App ID {AppId}.", appId);
+            try { process?.Kill(entireProcessTree: true); } catch { /* best effort */ }
             throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to run SteamCMD for App ID {AppId}.", appId);
             return false;
+        }
+        finally
+        {
+            process?.Dispose();
         }
     }
 }

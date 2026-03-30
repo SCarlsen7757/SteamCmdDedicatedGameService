@@ -15,9 +15,10 @@ public abstract class BaseGameServerService : IDisposable
 {
     private readonly ILogger _logger;
     private readonly ConcurrentQueue<string> _recentErrors = new();
+    private readonly Lock _processLock = new();
     private const int MaxStoredErrors = 50;
     private Process? _serverProcess;
-    private HealthCheckConfiguration? _healthConfig;
+    private HealthCheckConfiguration _healthConfig = new();
     private bool _disposed;
 
     protected BaseGameServerService(ILogger logger)
@@ -107,29 +108,32 @@ public abstract class BaseGameServerService : IDisposable
 
         try
         {
-            _serverProcess = new Process
+            lock (_processLock)
             {
-                StartInfo = new ProcessStartInfo
+                _serverProcess = new Process
                 {
-                    FileName = exePath,
-                    Arguments = arguments,
-                    WorkingDirectory = Path.GetDirectoryName(exePath) ?? gameConfig.InstallDirectory,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                }
-            };
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        Arguments = arguments,
+                        WorkingDirectory = Path.GetDirectoryName(exePath) ?? gameConfig.InstallDirectory,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                };
 
-            _healthConfig = healthConfig;
-            _serverProcess.OutputDataReceived += OnOutputDataReceived;
-            _serverProcess.ErrorDataReceived += OnErrorDataReceived;
+                _healthConfig = healthConfig;
+                _serverProcess.OutputDataReceived += OnOutputDataReceived;
+                _serverProcess.ErrorDataReceived += OnErrorDataReceived;
 
-            _serverProcess.Start();
-            _serverProcess.BeginOutputReadLine();
-            _serverProcess.BeginErrorReadLine();
+                _serverProcess.Start();
+                _serverProcess.BeginOutputReadLine();
+                _serverProcess.BeginErrorReadLine();
 
-            _logger.LogInformation("Game server started with PID {Pid}.", _serverProcess.Id);
+                _logger.LogInformation("Game server started with PID {Pid}.", _serverProcess.Id);
+            }
 
             await OnServerStartedAsync(cancellationToken);
             return true;
@@ -152,33 +156,39 @@ public abstract class BaseGameServerService : IDisposable
     /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_serverProcess is null || HasProcessExited() != false)
+        Process? process;
+        lock (_processLock)
+        {
+            process = _serverProcess;
+        }
+
+        if (process is null || HasProcessExited() != false)
         {
             _logger.LogInformation("Game server is not running.");
             return;
         }
 
         if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Stopping game server (PID {Pid})...", _serverProcess.Id);
+            _logger.LogInformation("Stopping game server (PID {Pid})...", process.Id);
 
         try
         {
             await OnServerStoppingAsync(cancellationToken);
 
             // Give the process a chance to exit gracefully
-            _serverProcess.CloseMainWindow();
+            process.CloseMainWindow();
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(15));
 
             try
             {
-                await _serverProcess.WaitForExitAsync(timeoutCts.Token);
+                await process.WaitForExitAsync(timeoutCts.Token);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 _logger.LogWarning("Game server did not exit gracefully within timeout. Killing process...");
-                _serverProcess.Kill(entireProcessTree: true);
+                process.Kill(entireProcessTree: true);
             }
 
             _logger.LogInformation("Game server stopped.");
@@ -186,7 +196,7 @@ public abstract class BaseGameServerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error stopping game server.");
-            try { _serverProcess.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
         }
     }
 
@@ -204,17 +214,20 @@ public abstract class BaseGameServerService : IDisposable
     /// </summary>
     private bool? HasProcessExited()
     {
-        if (_serverProcess is null)
-            return null;
+        lock (_processLock)
+        {
+            if (_serverProcess is null)
+                return null;
 
-        try
-        {
-            return _serverProcess.HasExited;
-        }
-        catch (InvalidOperationException)
-        {
-            // No OS process associated (e.g. Start() was never called or failed)
-            return null;
+            try
+            {
+                return _serverProcess.HasExited;
+            }
+            catch (InvalidOperationException)
+            {
+                // No OS process associated (e.g. Start() was never called or failed)
+                return null;
+            }
         }
     }
 
@@ -223,18 +236,21 @@ public abstract class BaseGameServerService : IDisposable
     /// </summary>
     private void CleanupProcess()
     {
-        if (_serverProcess is null)
-            return;
+        lock (_processLock)
+        {
+            if (_serverProcess is null)
+                return;
 
-        _serverProcess.OutputDataReceived -= OnOutputDataReceived;
-        _serverProcess.ErrorDataReceived -= OnErrorDataReceived;
-        _serverProcess.Dispose();
-        _serverProcess = null;
+            _serverProcess.OutputDataReceived -= OnOutputDataReceived;
+            _serverProcess.ErrorDataReceived -= OnErrorDataReceived;
+            _serverProcess.Dispose();
+            _serverProcess = null;
+        }
     }
 
-    private void OnOutputDataReceived(object sender, DataReceivedEventArgs e) => HandleOutputLine(e.Data, _healthConfig!);
+    private void OnOutputDataReceived(object sender, DataReceivedEventArgs e) => HandleOutputLine(e.Data, _healthConfig);
 
-    private void OnErrorDataReceived(object sender, DataReceivedEventArgs e) => HandleErrorLine(e.Data, _healthConfig!);
+    private void OnErrorDataReceived(object sender, DataReceivedEventArgs e) => HandleErrorLine(e.Data, _healthConfig);
 
     private void HandleOutputLine(string? data, HealthCheckConfiguration healthConfig)
     {
@@ -275,15 +291,20 @@ public abstract class BaseGameServerService : IDisposable
 
         _disposed = true;
 
-        if (_serverProcess is not null)
+        lock (_processLock)
         {
-            if (HasProcessExited() == false)
+            if (_serverProcess is not null)
             {
-                try { _serverProcess.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                try
+                {
+                    if (!_serverProcess.HasExited)
+                        _serverProcess.Kill(entireProcessTree: true);
+                }
+                catch { /* best effort */ }
             }
-
-            CleanupProcess();
         }
+
+        CleanupProcess();
         GC.SuppressFinalize(this);
     }
 }

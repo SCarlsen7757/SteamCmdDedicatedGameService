@@ -25,24 +25,6 @@ public class RaceRoomGameServerService(ILogger<RaceRoomGameServerService> logger
         return string.Empty;
     }
 
-    /// <summary>
-    /// RaceRoom-specific error detection.
-    /// Adds patterns commonly seen in RaceRoom server output alongside the base patterns.
-    /// </summary>
-    protected override bool IsErrorLine(string line, HealthCheckConfiguration healthConfig)
-    {
-        // RaceRoom-specific error indicators
-        string[] raceRoomPatterns =
-        [
-            "error",
-        ];
-
-        if (raceRoomPatterns.Any(p => line.Contains(p, StringComparison.OrdinalIgnoreCase)))
-            return true;
-
-        return base.IsErrorLine(line, healthConfig);
-    }
-
     protected override Task OnServerStartedAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("RaceRoom Dedicated Server has started. Waiting for server initialization...");

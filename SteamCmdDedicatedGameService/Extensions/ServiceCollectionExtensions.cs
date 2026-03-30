@@ -42,44 +42,24 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Parses command-line arguments and overrides configuration values.
+    /// Applies command-line argument overrides to configuration using switch mappings.
     /// Supported: --steamcmd, --appid, --serverpath, --exepath, --launchargs, --updateinterval
     /// </summary>
     public static IConfigurationManager ApplyCommandLineOverrides(
         this IConfigurationManager configuration,
         string[] args)
     {
-        var overrides = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-
-        for (int i = 0; i < args.Length - 1; i++)
+        var switchMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            switch (args[i].ToLowerInvariant())
-            {
-                case "--steamcmd":
-                    overrides[$"{SteamCmdConfiguration.SectionName}:ExePath"] = args[++i];
-                    break;
-                case "--appid":
-                    overrides[$"{GameServerConfiguration.SectionName}:AppId"] = args[++i];
-                    break;
-                case "--serverpath":
-                    overrides[$"{GameServerConfiguration.SectionName}:InstallDirectory"] = args[++i];
-                    break;
-                case "--exepath":
-                    overrides[$"{GameServerConfiguration.SectionName}:ExecutablePath"] = args[++i];
-                    break;
-                case "--launchargs":
-                    overrides[$"{GameServerConfiguration.SectionName}:LaunchArguments"] = args[++i];
-                    break;
-                case "--updateinterval":
-                    overrides[$"{GameServerConfiguration.SectionName}:UpdateIntervalMinutes"] = args[++i];
-                    break;
-            }
-        }
+            ["--steamcmd"] = $"{SteamCmdConfiguration.SectionName}:ExePath",
+            ["--appid"] = $"{GameServerConfiguration.SectionName}:AppId",
+            ["--serverpath"] = $"{GameServerConfiguration.SectionName}:InstallDirectory",
+            ["--exepath"] = $"{GameServerConfiguration.SectionName}:ExecutablePath",
+            ["--launchargs"] = $"{GameServerConfiguration.SectionName}:LaunchArguments",
+            ["--updateinterval"] = $"{GameServerConfiguration.SectionName}:UpdateIntervalMinutes",
+        };
 
-        if (overrides.Count > 0)
-        {
-            configuration.AddInMemoryCollection(overrides);
-        }
+        configuration.AddCommandLine(args, switchMappings);
 
         return configuration;
     }
